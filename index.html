@@ -1,44 +1,111 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Book Recommender</title>
   <meta charset="UTF-8" />
+  <title>Book Recommender</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
-    input, button { padding: 10px; font-size: 1rem; margin-top: 10px; width: 100%; }
-    .book { margin-top: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 600px;
+      margin: auto;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      text-align: center;
+    }
+    input, button {
+      padding: 10px;
+      font-size: 1rem;
+      margin-top: 10px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .book {
+      margin-top: 15px;
+      padding: 10px;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    .book img {
+      max-width: 100px;
+      display: block;
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
-  <h1>Book Recommender</h1>
-  <p>Enter a book you like, and we'll recommend 10 similar ones.</p>
+  <h1>📚 Book Recommender</h1>
+  <p>Enter a book you like, and we'll recommend 10 similar ones using Google Books.</p>
   <input id="bookInput" type="text" placeholder="e.g., Slaughterhouse-Five" />
   <button onclick="getRecommendations()">Get Recommendations</button>
   <div id="results"></div>
 
   <script>
     async function getRecommendations() {
-      const query = document.getElementById("bookInput").value;
+      const query = document.getElementById("bookInput").value.trim();
       const resultsDiv = document.getElementById("results");
-      resultsDiv.innerHTML = "Searching...";
 
-      const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=10`);
-      const data = await res.json();
+      if (!query) {
+        resultsDiv.innerHTML = "<p>Please enter a book title.</p>";
+        return;
+      }
 
-      resultsDiv.innerHTML = "";
-      data.items?.forEach(book => {
-        const info = book.volumeInfo;
-        const div = document.createElement("div");
-        div.className = "book";
-        div.innerHTML = `
-          <strong>${info.title}</strong> by ${info.authors?.join(", ") || "Unknown"}
-          <br/>
-          <img src="${info.imageLinks?.thumbnail || ""}" alt="No cover" />
-          <p>${info.description?.slice(0, 200) || "No description"}...</p>
-          <a href="${info.infoLink}" target="_blank">More Info</a>
-        `;
-        resultsDiv.appendChild(div);
-      });
+      resultsDiv.innerHTML = "<p>🔍 Searching for recommendations...</p>";
+
+      try {
+        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=10`);
+        const data = await res.json();
+
+        resultsDiv.innerHTML = "";
+
+        if (!data.items) {
+          resultsDiv.innerHTML = "<p>No results found. Try another book.</p>";
+          return;
+        }
+
+        const userQuery = query.toLowerCase();
+
+        data.items.forEach(book => {
+          const info = book.volumeInfo;
+          const title = info.title?.toLowerCase() || "";
+
+          // Skip if the book title matches or closely matches the user's input
+          if (title.includes(userQuery) || userQuery.includes(title)) {
+            return;
+          }
+
+          const div = document.createElement("div");
+          div.className = "book";
+          div.innerHTML = `
+            <strong>${info.title || "No title"}</strong> by ${info.authors?.join(", ") || "Unknown"}
+            <br/>
+            ${info.imageLinks?.thumbnail ? `<img src="${info.imageLinks.thumbnail}" alt="Book cover">` : ""}
+            <p>${info.description?.slice(0, 200) || "No description"}...</p>
+            <a href="${info.infoLink}" target="_blank">More Info</a>
+          `;
+          resultsDiv.appendChild(div);
+        });
+
+        if (!resultsDiv.hasChildNodes()) {
+          resultsDiv.innerHTML = "<p>No alternative books found. Try another search.</p>";
+        }
+
+      } catch (error) {
+        resultsDiv.innerHTML = "<p>❌ Something went wrong. Try again later.</p>";
+        console.error(error);
+      }
     }
   </script>
 </body>
