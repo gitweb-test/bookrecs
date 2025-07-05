@@ -107,17 +107,14 @@
     const bookInput = document.getElementById("bookInput");
     const suggestionsBox = document.getElementById("autocomplete-list");
 
-    // Compute normalized Levenshtein similarity (0..1, higher = better)
     function similarity(s1, s2) {
       const longer = s1.length > s2.length ? s1 : s2;
       const shorter = s1.length > s2.length ? s2 : s1;
       const longerLength = longer.length;
       if (longerLength === 0) return 1.0;
-
       return (longerLength - editDistance(longer, shorter)) / longerLength;
     }
 
-    // Levenshtein edit distance
     function editDistance(s1, s2) {
       s1 = s1.toLowerCase();
       s2 = s2.toLowerCase();
@@ -162,7 +159,6 @@
         const lowerQuery = query.toLowerCase();
         const seen = new Set();
 
-        // Compute similarity for each item and filter out those with "unknown" authors or duplicate titles
         let candidates = data.items
           .map(item => {
             const info = item.volumeInfo;
@@ -182,10 +178,7 @@
           })
           .filter(x => x !== null);
 
-        // Sort by similarity descending
         candidates.sort((a, b) => b.sim - a.sim);
-
-        // Show top 10 matches
         const top = candidates.slice(0, 10);
 
         suggestionsBox.innerHTML = "";
@@ -234,7 +227,6 @@
           return;
         }
 
-        // Extract authors of user input book to exclude
         let userAuthors = [];
         const lowerQuery = query.toLowerCase();
 
@@ -268,6 +260,9 @@
           const info = book.volumeInfo;
           if (!info.title) continue;
 
+          // Skip if no cover image or no description
+          if (!info.imageLinks?.thumbnail || !info.description) continue;
+
           const titleLower = info.title.toLowerCase();
           const authorsList = info.authors || ["unknown"];
           const authorsLower = authorsList.map(a => a.toLowerCase());
@@ -288,7 +283,6 @@
           }
           if (skip) continue;
 
-          // Mark authors as seen
           authorsLower.forEach(a => seenAuthors.add(a));
 
           const div = document.createElement("div");
@@ -298,7 +292,7 @@
           const shortened = description.length > 500 ? description.slice(0, 500) + "..." : description;
 
           div.innerHTML = `
-            ${info.imageLinks?.thumbnail ? `<img src="${info.imageLinks.thumbnail}" alt="Book cover">` : ""}
+            <img src="${info.imageLinks.thumbnail}" alt="Book cover">
             <div class="book-info">
               <strong>${info.title || "No title"}</strong> by ${authorsList.join(", ") || "Unknown"}
               <p>${shortened}</p>
