@@ -75,6 +75,12 @@
     #suggestions div strong {
       font-weight: bold;
     }
+    #confirmation {
+      margin-top: 6px;
+      font-style: italic;
+      color: #555;
+      min-height: 1.4em;
+    }
   </style>
 </head>
 <body>
@@ -84,6 +90,7 @@
   <div class="input-container">
     <input id="bookInput" type="text" placeholder="e.g. Slaughterhouse-Five" autocomplete="off" />
     <div id="suggestions"></div>
+    <div id="confirmation"></div>
   </div>
 
   <button onclick="getRecommendations()">Get Recommendations</button>
@@ -92,9 +99,12 @@
   <script>
     const input = document.getElementById('bookInput');
     const suggestionsDiv = document.getElementById('suggestions');
+    const confirmationDiv = document.getElementById('confirmation');
 
     input.addEventListener('input', async () => {
       const query = input.value.trim();
+      confirmationDiv.textContent = ''; // Clear confirmation on new typing
+
       if (!query) {
         suggestionsDiv.style.display = 'none';
         suggestionsDiv.innerHTML = '';
@@ -111,7 +121,6 @@
           return;
         }
 
-        // Track seen title+author combos to avoid duplicates
         const seen = new Set();
 
         suggestionsDiv.innerHTML = '';
@@ -127,9 +136,12 @@
           item.innerHTML = `<strong>${title}</strong> by ${authors}`;
 
           item.addEventListener('click', () => {
-            input.value = title;
+            input.value = title;  // only title in input
             suggestionsDiv.style.display = 'none';
             suggestionsDiv.innerHTML = '';
+
+            // Show confirmation below input
+            confirmationDiv.textContent = `You selected: "${title}" by ${authors}`;
           });
 
           suggestionsDiv.appendChild(item);
@@ -144,7 +156,6 @@
       }
     });
 
-    // Hide suggestions if user clicks outside
     document.addEventListener('click', (e) => {
       if (!suggestionsDiv.contains(e.target) && e.target !== input) {
         suggestionsDiv.style.display = 'none';
