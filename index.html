@@ -11,6 +11,7 @@
       max-width: 600px;
       margin: auto;
       background-color: #f9f9f9;
+      position: relative;
     }
     h1 {
       text-align: center;
@@ -43,18 +44,98 @@
       display: block;
       margin-bottom: 10px;
     }
+    #suggestions {
+      border: 1px solid #ccc;
+      max-height: 150px;
+      overflow-y: auto;
+      background: white;
+      position: absolute;
+      width: 100%;
+      box-sizing: border-box;
+      display: none;
+      z-index: 1000;
+      top: 110px; /* Adjust so it sits nicely under input */
+      left: 20px; /* Align with body padding */
+      border-radius: 0 0 8px 8px;
+    }
+    #suggestions div {
+      padding: 8px;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+    }
+    #suggestions div:hover {
+      background-color: #f0f0f0;
+    }
   </style>
 </head>
 <body>
   <h1>📚 Book Recommender</h1>
   <p>Enter a book you like, and we'll recommend 10 similar ones using Google Books.</p>
-  <input id="bookInput" type="text" placeholder="e.g. Slaughterhouse-Five" />
+  
+  <input id="bookInput" type="text" placeholder="e.g. Slaughterhouse-Five" autocomplete="off" />
+  <div id="suggestions"></div>
+  
   <button onclick="getRecommendations()">Get Recommendations</button>
   <div id="results"></div>
 
   <script>
+    const input = document.getElementById('bookInput');
+    const suggestionsDiv = document.getElementById('suggestions');
+
+    input.addEventListener('input', async () => {
+      const query = input.value.trim();
+      if (!query) {
+        suggestionsDiv.style.display = 'none';
+        suggestionsDiv.innerHTML = '';
+        return;
+      }
+
+      try {
+        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=5`);
+        const data = await res.json();
+
+        if (!data.items || data.items.length === 0) {
+          suggestionsDiv.style.display = 'none';
+          suggestionsDiv.innerHTML = '';
+          return;
+        }
+
+        suggestionsDiv.innerHTML = '';
+        data.items.forEach(book => {
+          const title = book.volumeInfo.title || "Unknown title";
+          const authors = book.volumeInfo.authors ? book.volumeInfo.authors.join(", ") : "Unknown author";
+
+          const item = document.createElement('div');
+          item.textContent = `${title} — ${authors}`;
+
+          item.addEventListener('click', () => {
+            input.value = title;
+            suggestionsDiv.style.display = 'none';
+            suggestionsDiv.innerHTML = '';
+          });
+
+          suggestionsDiv.appendChild(item);
+        });
+
+        suggestionsDiv.style.display = 'block';
+
+      } catch (error) {
+        suggestionsDiv.style.display = 'none';
+        suggestionsDiv.innerHTML = '';
+        console.error('Autocomplete fetch error:', error);
+      }
+    });
+
+    // Hide suggestions if user clicks outside
+    document.addEventListener('click', (e) => {
+      if (!suggestionsDiv.contains(e.target) && e.target !== input) {
+        suggestionsDiv.style.display = 'none';
+        suggestionsDiv.innerHTML = '';
+      }
+    });
+
     async function getRecommendations() {
-      const query = document.getElementById("bookInput").value.trim();
+      const query = input.value.trim();
       const resultsDiv = document.getElementById("results");
 
       if (!query) {
