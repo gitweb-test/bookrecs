@@ -124,7 +124,14 @@
 
         (data.items || []).forEach(item => {
           const title = item.volumeInfo.title || "No title";
-          const authors = item.volumeInfo.authors?.join(", ") || "Unknown";
+          const authorsArr = item.volumeInfo.authors || [];
+          const authors = authorsArr.join(", ");
+
+          // Exclude if author is unknown or missing
+          if (!authorsArr.length || authors.toLowerCase() === "unknown") {
+            return;
+          }
+
           const fullText = `${title} by ${authors}`;
           const key = fullText.toLowerCase();
 
@@ -175,7 +182,6 @@
         }
 
         // Extract authors of user input book to exclude/restrict
-        // We'll try to find the first matching item for userQuery and get its authors
         let userAuthors = [];
         const lowerQuery = query.toLowerCase();
 
@@ -193,7 +199,6 @@
 
         const seenAuthors = new Set();
 
-        // Helper to check if arrays intersect ignoring case
         function hasAuthorOverlap(authors1, authors2) {
           if (!authors1.length || !authors2.length) return false;
           for (const a1 of authors1) {
