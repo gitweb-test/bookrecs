@@ -8,13 +8,15 @@
     body {
       font-family: Arial, sans-serif;
       padding: 20px;
-      max-width: 600px;
+      max-width: 700px;
       margin: auto;
       background-color: #f9f9f9;
     }
+
     h1 {
       text-align: center;
     }
+
     input, button {
       padding: 10px;
       font-size: 1rem;
@@ -22,175 +24,136 @@
       width: 100%;
       box-sizing: border-box;
     }
+
     button {
       background-color: #4CAF50;
       color: white;
       border: none;
       cursor: pointer;
     }
+
     button:hover {
       background-color: #45a049;
     }
+
+    .autocomplete-suggestions {
+      border: 1px solid #ccc;
+      border-top: none;
+      max-height: 200px;
+      overflow-y: auto;
+      background: white;
+      position: absolute;
+      width: calc(100% - 42px);
+      z-index: 1000;
+    }
+
+    .autocomplete-suggestion {
+      padding: 10px;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+    }
+
+    .autocomplete-suggestion:hover {
+      background-color: #f0f0f0;
+    }
+
     .book {
+      display: flex;
+      gap: 15px;
       margin-top: 15px;
       padding: 10px;
       background: white;
       border: 1px solid #ccc;
       border-radius: 8px;
     }
+
     .book img {
       max-width: 100px;
-      display: block;
-      margin-bottom: 10px;
+      height: auto;
+      flex-shrink: 0;
+      border-radius: 4px;
     }
-    .input-container {
-      position: relative;
-      width: 100%;
-      margin-top: 10px;
+
+    .book-info {
+      flex: 1;
     }
-    #suggestions {
-      border: 1px solid #ccc;
-      max-height: 150px;
-      overflow-y: auto;
-      background: white;
-      position: absolute;
-      width: 100%;
-      box-sizing: border-box;
-      display: none;
-      z-index: 1000;
-      top: 100%;
-      left: 0;
-      border-radius: 0 0 8px 8px;
-      font-size: 1rem;
+
+    .book-info p {
+      margin: 10px 0;
     }
-    #suggestions div {
-      padding: 8px;
-      cursor: pointer;
-      border-bottom: 1px solid #eee;
-    }
-    #suggestions div:hover {
-      background-color: #f0f0f0;
-    }
-    #suggestions div strong {
+
+    .bold-title {
       font-weight: bold;
     }
-    #confirmation {
-      margin-top: 6px;
-      font-style: italic;
-      color: #555;
-      min-height: 1.4em;
+
+    .autocomplete-container {
+      position: relative;
     }
   </style>
 </head>
 <body>
   <h1>📚 Book Recommender</h1>
   <p>Enter a book you like, and we'll recommend 10 similar ones using Google Books.</p>
-  
-  <div class="input-container">
+
+  <div class="autocomplete-container">
     <input id="bookInput" type="text" placeholder="e.g. Slaughterhouse-Five" autocomplete="off" />
-    <div id="suggestions"></div>
-    <div id="confirmation"></div>
+    <div id="autocomplete-list" class="autocomplete-suggestions"></div>
   </div>
 
   <button onclick="getRecommendations()">Get Recommendations</button>
   <div id="results"></div>
 
   <script>
-    const input = document.getElementById('bookInput');
-    const suggestionsDiv = document.getElementById('suggestions');
-    const confirmationDiv = document.getElementById('confirmation');
+    const bookInput = document.getElementById("bookInput");
+    const suggestionsBox = document.getElementById("autocomplete-list");
 
-    // Helper: simple substring match score
-    function similarityScore(str, query) {
-      str = str.toLowerCase();
-      query = query.toLowerCase();
-      return str.includes(query) ? query.length / str.length : 0;
-    }
+    bookInput.addEventListener("input", async () => {
+      const query = bookInput.value.trim();
 
-    // Combine relevance + popularity
-    function combinedScore(title, authors, ratingsCount, query) {
-      const relevance =
-        Math.max(similarityScore(title, query), similarityScore(authors, query));
-      const popularity = Math.log10(ratingsCount + 1); // Prevent zero, scale it
-      return relevance * 2 + popularity; // Weight relevance more
-    }
-
-    input.addEventListener('input', async () => {
-      const query = input.value.trim();
-      confirmationDiv.textContent = '';
-      if (!query) {
-        suggestionsDiv.style.display = 'none';
-        suggestionsDiv.innerHTML = '';
+      if (query.length < 3) {
+        suggestionsBox.innerHTML = "";
         return;
       }
 
       try {
-        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(query)}&maxResults=30`);
+        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=15`);
         const data = await res.json();
 
-        if (!data.items) {
-          suggestionsDiv.style.display = 'none';
-          suggestionsDiv.innerHTML = '';
-          return;
-        }
-
         const seen = new Set();
-        const filtered = data.items.filter(book => {
-          const title = book.volumeInfo.title || "";
-          const authors = book.volumeInfo.authors?.join(", ") || "";
-          const key = title.toLowerCase() + '|' + authors.toLowerCase();
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return title.toLowerCase().includes(query.toLowerCase()) ||
-                 authors.toLowerCase().includes(query.toLowerCase());
+        suggestionsBox.innerHTML = "";
+
+        (data.items || []).forEach(item => {
+          const title = item.volumeInfo.title || "No title";
+          const authors = item.volumeInfo.authors?.join(", ") || "Unknown";
+          const fullText = `${title} by ${authors}`;
+          const key = fullText.toLowerCase();
+
+          if (key.includes(query.toLowerCase()) && !seen.has(key)) {
+            seen.add(key);
+            const div = document.createElement("div");
+            div.className = "autocomplete-suggestion";
+            div.innerHTML = `<span class="bold-title">${title}</span> by ${authors}`;
+            div.addEventListener("click", () => {
+              bookInput.value = fullText;
+              suggestionsBox.innerHTML = "";
+            });
+            suggestionsBox.appendChild(div);
+          }
         });
-
-        filtered.sort((a, b) => {
-          const aTitle = a.volumeInfo.title || "";
-          const aAuthors = a.volumeInfo.authors?.join(", ") || "";
-          const aRatings = a.volumeInfo.ratingsCount || 0;
-
-          const bTitle = b.volumeInfo.title || "";
-          const bAuthors = b.volumeInfo.authors?.join(", ") || "";
-          const bRatings = b.volumeInfo.ratingsCount || 0;
-
-          const aScore = combinedScore(aTitle, aAuthors, aRatings, query);
-          const bScore = combinedScore(bTitle, bAuthors, bRatings, query);
-
-          return bScore - aScore; // Descending
-        });
-
-        suggestionsDiv.innerHTML = '';
-        filtered.slice(0, 10).forEach(book => {
-          const title = book.volumeInfo.title || "Unknown title";
-          const authors = book.volumeInfo.authors?.join(", ") || "Unknown author";
-          const item = document.createElement('div');
-          item.innerHTML = `<strong>${title}</strong> by ${authors}`;
-          item.addEventListener('click', () => {
-            input.value = title; // Only title goes in search box
-            suggestionsDiv.style.display = 'none';
-            suggestionsDiv.innerHTML = '';
-            confirmationDiv.textContent = `You selected: "${title}" by ${authors}`;
-          });
-          suggestionsDiv.appendChild(item);
-        });
-
-        suggestionsDiv.style.display = filtered.length > 0 ? 'block' : 'none';
-
-      } catch (error) {
-        console.error('Autocomplete error:', error);
-        suggestionsDiv.style.display = 'none';
+      } catch (e) {
+        suggestionsBox.innerHTML = "";
+        console.error(e);
       }
     });
 
-    document.addEventListener('click', (e) => {
-      if (!suggestionsDiv.contains(e.target) && e.target !== input) {
-        suggestionsDiv.style.display = 'none';
+    document.addEventListener("click", e => {
+      if (!e.target.closest(".autocomplete-container")) {
+        suggestionsBox.innerHTML = "";
       }
     });
 
     async function getRecommendations() {
-      const query = input.value.trim();
+      const query = document.getElementById("bookInput").value.trim();
       const resultsDiv = document.getElementById("results");
 
       if (!query) {
@@ -216,6 +179,7 @@
         data.items.forEach(book => {
           const info = book.volumeInfo;
           const title = info.title?.toLowerCase() || "";
+          const authors = info.authors?.join(", ") || "Unknown";
 
           if (title.includes(userQuery) || userQuery.includes(title)) {
             return;
@@ -223,12 +187,17 @@
 
           const div = document.createElement("div");
           div.className = "book";
+
+          const description = info.description || "No description available.";
+          const shortened = description.length > 500 ? description.slice(0, 500) + "..." : description;
+
           div.innerHTML = `
-            <strong>${info.title || "No title"}</strong> by ${info.authors?.join(", ") || "Unknown"}
-            <br/>
             ${info.imageLinks?.thumbnail ? `<img src="${info.imageLinks.thumbnail}" alt="Book cover">` : ""}
-            <p>${info.description?.slice(0, 200) || "No description"}...</p>
-            <a href="${info.infoLink}" target="_blank">More Info</a>
+            <div class="book-info">
+              <strong>${info.title || "No title"}</strong> by ${authors}
+              <p>${shortened}</p>
+              <a href="${info.infoLink}" target="_blank">More Info</a>
+            </div>
           `;
           resultsDiv.appendChild(div);
         });
@@ -236,7 +205,6 @@
         if (!resultsDiv.hasChildNodes()) {
           resultsDiv.innerHTML = "<p>No alternative books found. Try another search.</p>";
         }
-
       } catch (error) {
         resultsDiv.innerHTML = "<p>❌ Something went wrong. Try again later.</p>";
         console.error(error);
