@@ -43,7 +43,6 @@
       display: block;
       margin-bottom: 10px;
     }
-    /* Container to hold input and suggestions */
     .input-container {
       position: relative;
       width: 100%;
@@ -100,95 +99,93 @@
     const input = document.getElementById('bookInput');
     const suggestionsDiv = document.getElementById('suggestions');
     const confirmationDiv = document.getElementById('confirmation');
-    let debounceTimeout;
 
-    // Helper: simple substring match score (0-1)
+    // Helper: simple substring match score
     function similarityScore(str, query) {
       str = str.toLowerCase();
       query = query.toLowerCase();
       return str.includes(query) ? query.length / str.length : 0;
     }
 
-    input.addEventListener('input', () => {
-      clearTimeout(debounceTimeout);
-      confirmationDiv.textContent = ''; // Clear confirmation on new typing
+    // Combine relevance + popularity
+    function combinedScore(title, authors, ratingsCount, query) {
+      const relevance =
+        Math.max(similarityScore(title, query), similarityScore(authors, query));
+      const popularity = Math.log10(ratingsCount + 1); // Prevent zero, scale it
+      return relevance * 2 + popularity; // Weight relevance more
+    }
 
+    input.addEventListener('input', async () => {
       const query = input.value.trim();
+      confirmationDiv.textContent = '';
       if (!query) {
         suggestionsDiv.style.display = 'none';
         suggestionsDiv.innerHTML = '';
         return;
       }
 
-      debounceTimeout = setTimeout(async () => {
-        try {
-          // Use intitle: prefix for title-only search, maxResults=30 for more options
-          const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(query)}&maxResults=30`);
-          const data = await res.json();
+      try {
+        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(query)}&maxResults=30`);
+        const data = await res.json();
 
-          if (!data.items || data.items.length === 0) {
-            suggestionsDiv.style.display = 'none';
-            suggestionsDiv.innerHTML = '';
-            return;
-          }
-
-          // Filter and sort by similarity score to query in title and author
-          const seen = new Set();
-          const filtered = data.items.filter(book => {
-            const title = book.volumeInfo.title || "";
-            const authors = book.volumeInfo.authors?.join(", ") || "";
-            const key = title.toLowerCase() + '|' + authors.toLowerCase();
-
-            if (seen.has(key)) return false;
-            seen.add(key);
-
-            // Keep if title or author includes query substring (case-insensitive)
-            return title.toLowerCase().includes(query.toLowerCase()) || authors.toLowerCase().includes(query.toLowerCase());
-          });
-
-          filtered.sort((a, b) => {
-            const aScore = Math.max(similarityScore(a.volumeInfo.title || "", query), similarityScore(a.volumeInfo.authors?.join(", ") || "", query));
-            const bScore = Math.max(similarityScore(b.volumeInfo.title || "", query), similarityScore(b.volumeInfo.authors?.join(", ") || "", query));
-            return bScore - aScore; // descending order
-          });
-
-          suggestionsDiv.innerHTML = '';
-          filtered.slice(0, 10).forEach(book => {
-            const title = book.volumeInfo.title || "Unknown title";
-            const authors = book.volumeInfo.authors ? book.volumeInfo.authors.join(", ") : "Unknown author";
-
-            const item = document.createElement('div');
-            item.innerHTML = `<strong>${title}</strong> by ${authors}`;
-
-            item.addEventListener('click', () => {
-              input.value = title;  // only title in input
-              suggestionsDiv.style.display = 'none';
-              suggestionsDiv.innerHTML = '';
-
-              confirmationDiv.textContent = `You selected: "${title}" by ${authors}`;
-            });
-
-            suggestionsDiv.appendChild(item);
-          });
-
-          if (filtered.length === 0) {
-            suggestionsDiv.style.display = 'none';
-          } else {
-            suggestionsDiv.style.display = 'block';
-          }
-
-        } catch (error) {
+        if (!data.items) {
           suggestionsDiv.style.display = 'none';
           suggestionsDiv.innerHTML = '';
-          console.error('Autocomplete fetch error:', error);
+          return;
         }
-      }, 100); // 100ms debounce
+
+        const seen = new Set();
+        const filtered = data.items.filter(book => {
+          const title = book.volumeInfo.title || "";
+          const authors = book.volumeInfo.authors?.join(", ") || "";
+          const key = title.toLowerCase() + '|' + authors.toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return title.toLowerCase().includes(query.toLowerCase()) ||
+                 authors.toLowerCase().includes(query.toLowerCase());
+        });
+
+        filtered.sort((a, b) => {
+          const aTitle = a.volumeInfo.title || "";
+          const aAuthors = a.volumeInfo.authors?.join(", ") || "";
+          const aRatings = a.volumeInfo.ratingsCount || 0;
+
+          const bTitle = b.volumeInfo.title || "";
+          const bAuthors = b.volumeInfo.authors?.join(", ") || "";
+          const bRatings = b.volumeInfo.ratingsCount || 0;
+
+          const aScore = combinedScore(aTitle, aAuthors, aRatings, query);
+          const bScore = combinedScore(bTitle, bAuthors, bRatings, query);
+
+          return bScore - aScore; // Descending
+        });
+
+        suggestionsDiv.innerHTML = '';
+        filtered.slice(0, 10).forEach(book => {
+          const title = book.volumeInfo.title || "Unknown title";
+          const authors = book.volumeInfo.authors?.join(", ") || "Unknown author";
+          const item = document.createElement('div');
+          item.innerHTML = `<strong>${title}</strong> by ${authors}`;
+          item.addEventListener('click', () => {
+            input.value = title; // Only title goes in search box
+            suggestionsDiv.style.display = 'none';
+            suggestionsDiv.innerHTML = '';
+            confirmationDiv.textContent = `You selected: "${title}" by ${authors}`;
+          });
+          suggestionsDiv.appendChild(item);
+        });
+
+        suggestionsDiv.style.display = filtered.length > 0 ? 'block' : 'none';
+
+      } catch (error) {
+        console.error('Autocomplete error:', error);
+        suggestionsDiv.style.display = 'none';
+      }
     });
 
     document.addEventListener('click', (e) => {
       if (!suggestionsDiv.contains(e.target) && e.target !== input) {
         suggestionsDiv.style.display = 'none';
-        suggestionsDiv.innerHTML = '';
       }
     });
 
@@ -220,7 +217,6 @@
           const info = book.volumeInfo;
           const title = info.title?.toLowerCase() || "";
 
-          // Skip if the book title matches or closely matches the user's input
           if (title.includes(userQuery) || userQuery.includes(title)) {
             return;
           }
