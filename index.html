@@ -43,7 +43,7 @@
       overflow-y: auto;
       background: white;
       position: absolute;
-      width: calc(100% - 42px);
+      width: calc(100% - 22px);
       z-index: 1000;
     }
 
@@ -107,7 +107,7 @@
     const bookInput = document.getElementById("bookInput");
     const suggestionsBox = document.getElementById("autocomplete-list");
 
-    // Compute normalized Levenshtein distance similarity (0..1, higher = better)
+    // Compute normalized Levenshtein similarity (0..1, higher = better)
     function similarity(s1, s2) {
       const longer = s1.length > s2.length ? s1 : s2;
       const shorter = s1.length > s2.length ? s2 : s1;
@@ -224,7 +224,7 @@
       resultsDiv.innerHTML = "<p>🔍 Searching for recommendations...</p>";
 
       try {
-        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=20`);
+        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=40`);
         const data = await res.json();
 
         resultsDiv.innerHTML = "";
@@ -234,7 +234,7 @@
           return;
         }
 
-        // Extract authors of user input book to exclude/restrict
+        // Extract authors of user input book to exclude
         let userAuthors = [];
         const lowerQuery = query.toLowerCase();
 
@@ -300,4 +300,24 @@
           div.innerHTML = `
             ${info.imageLinks?.thumbnail ? `<img src="${info.imageLinks.thumbnail}" alt="Book cover">` : ""}
             <div class="book-info">
-              <strong
+              <strong>${info.title || "No title"}</strong> by ${authorsList.join(", ") || "Unknown"}
+              <p>${shortened}</p>
+              <a href="${info.infoLink}" target="_blank" rel="noopener noreferrer">More Info</a>
+            </div>
+          `;
+          resultsDiv.appendChild(div);
+          recCount++;
+        }
+
+        if (recCount === 0) {
+          resultsDiv.innerHTML = "<p>No suitable recommendations found. Try another search.</p>";
+        }
+
+      } catch (error) {
+        resultsDiv.innerHTML = "<p>❌ Something went wrong. Try again later.</p>";
+        console.error(error);
+      }
+    }
+  </script>
+</body>
+</html>
