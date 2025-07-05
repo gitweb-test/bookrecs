@@ -164,7 +164,7 @@
       resultsDiv.innerHTML = "<p>🔍 Searching for recommendations...</p>";
 
       try {
-        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=10`);
+        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=20`);
         const data = await res.json();
 
         resultsDiv.innerHTML = "";
@@ -174,16 +174,64 @@
           return;
         }
 
-        const userQuery = query.toLowerCase();
+        // Extract authors of user input book to exclude/restrict
+        // We'll try to find the first matching item for userQuery and get its authors
+        let userAuthors = [];
+        const lowerQuery = query.toLowerCase();
 
-        data.items.forEach(book => {
-          const info = book.volumeInfo;
-          const title = info.title?.toLowerCase() || "";
-          const authors = info.authors?.join(", ") || "Unknown";
-
-          if (title.includes(userQuery) || userQuery.includes(title)) {
-            return;
+        for (const item of data.items) {
+          const info = item.volumeInfo;
+          if (!info.title) continue;
+          const titleLower = info.title.toLowerCase();
+          const authorsList = info.authors || [];
+          const fullAuthorsStr = authorsList.join(", ").toLowerCase();
+          if (titleLower.includes(lowerQuery) || lowerQuery.includes(titleLower) || fullAuthorsStr.includes(lowerQuery)) {
+            userAuthors = authorsList.map(a => a.toLowerCase());
+            break;
           }
+        }
+
+        const seenAuthors = new Set();
+
+        // Helper to check if arrays intersect ignoring case
+        function hasAuthorOverlap(authors1, authors2) {
+          if (!authors1.length || !authors2.length) return false;
+          for (const a1 of authors1) {
+            for (const a2 of authors2) {
+              if (a1.toLowerCase() === a2.toLowerCase()) return true;
+            }
+          }
+          return false;
+        }
+
+        let recCount = 0;
+        for (const book of data.items) {
+          if (recCount >= 10) break;
+          const info = book.volumeInfo;
+          if (!info.title) continue;
+
+          const titleLower = info.title.toLowerCase();
+          const authorsList = info.authors || ["unknown"];
+          const authorsLower = authorsList.map(a => a.toLowerCase());
+
+          // Skip the exact book user searched for
+          if (titleLower.includes(lowerQuery) || lowerQuery.includes(titleLower)) continue;
+
+          // Skip books by the same author(s) as user input book
+          if (hasAuthorOverlap(authorsLower, userAuthors)) continue;
+
+          // Skip if author already recommended once
+          let skip = false;
+          for (const a of authorsLower) {
+            if (seenAuthors.has(a)) {
+              skip = true;
+              break;
+            }
+          }
+          if (skip) continue;
+
+          // Mark authors as seen
+          authorsLower.forEach(a => seenAuthors.add(a));
 
           const div = document.createElement("div");
           div.className = "book";
@@ -194,15 +242,17 @@
           div.innerHTML = `
             ${info.imageLinks?.thumbnail ? `<img src="${info.imageLinks.thumbnail}" alt="Book cover">` : ""}
             <div class="book-info">
-              <strong>${info.title || "No title"}</strong> by ${authors}
+              <strong>${info.title || "No title"}</strong> by ${authorsList.join(", ")}
               <p>${shortened}</p>
               <a href="${info.infoLink}" target="_blank">More Info</a>
             </div>
           `;
-          resultsDiv.appendChild(div);
-        });
 
-        if (!resultsDiv.hasChildNodes()) {
+          resultsDiv.appendChild(div);
+          recCount++;
+        }
+
+        if (resultsDiv.childElementCount === 0) {
           resultsDiv.innerHTML = "<p>No alternative books found. Try another search.</p>";
         }
       } catch (error) {
