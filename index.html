@@ -205,6 +205,16 @@
       }
     });
 
+    function hasAuthorOverlap(authors1, authors2) {
+      if (!authors1.length || !authors2.length) return false;
+      for (const a1 of authors1) {
+        for (const a2 of authors2) {
+          if (a1.toLowerCase() === a2.toLowerCase()) return true;
+        }
+      }
+      return false;
+    }
+
     async function getRecommendations() {
       const query = document.getElementById("bookInput").value.trim();
       const resultsDiv = document.getElementById("results");
@@ -227,9 +237,12 @@
           return;
         }
 
+        let bookFound = false;
+        let userCategories = [];
         let userAuthors = [];
         const lowerQuery = query.toLowerCase();
 
+        // Find the user's book
         for (const item of data.items) {
           const info = item.volumeInfo;
           if (!info.title) continue;
@@ -238,72 +251,84 @@
           const fullAuthorsStr = authorsList.join(", ").toLowerCase();
           if (titleLower.includes(lowerQuery) || lowerQuery.includes(titleLower) || fullAuthorsStr.includes(lowerQuery)) {
             userAuthors = authorsList.map(a => a.toLowerCase());
+            userCategories = info.categories || [];
+            bookFound = true;
             break;
           }
         }
 
-        const seenAuthors = new Set();
-
-        function hasAuthorOverlap(authors1, authors2) {
-          if (!authors1.length || !authors2.length) return false;
-          for (const a1 of authors1) {
-            for (const a2 of authors2) {
-              if (a1.toLowerCase() === a2.toLowerCase()) return true;
-            }
-          }
-          return false;
+        if (!bookFound) {
+          resultsDiv.innerHTML = "<p>Book not found. Please try a different title.</p>";
+          return;
         }
 
-        let recCount = 0;
+        const potentialRecs = [];
         for (const book of data.items) {
-          if (recCount >= 10) break;
           const info = book.volumeInfo;
-          if (!info.title) continue;
-
-          // Skip if no cover image or no description
-          if (!info.imageLinks?.thumbnail || !info.description) continue;
-
+          if (!info.title || !info.imageLinks?.thumbnail || !info.description) continue;
           const titleLower = info.title.toLowerCase();
           const authorsList = info.authors || ["unknown"];
           const authorsLower = authorsList.map(a => a.toLowerCase());
 
-          // Skip the exact book user searched for
+          // Skip the user's book
           if (titleLower.includes(lowerQuery) || lowerQuery.includes(titleLower)) continue;
 
-          // Skip books by the same author(s) as user input book
+          // Skip books by the same authors as the user's book
           if (hasAuthorOverlap(authorsLower, userAuthors)) continue;
 
-          // Skip if author already recommended once
-          let skip = false;
-          for (const a of authorsLower) {
-            if (seenAuthors.has(a)) {
-              skip = true;
-              break;
+          let score = 0;
+          // Add score for genre overlap
+          if (userCategories.length > 0 && info.categories && info.categories.length > 0) {
+            if (userCategories.some(cat => info.categories.includes(cat))) {
+              score += 1;
             }
           }
-          if (skip) continue;
+          // Add score for high rating
+          if (info.averageRating && typeof info.averageRating === 'number' && info.averageRating >= 3.5) {
+            score += 1;
+          }
+          potentialRecs.push({ book, score });
+        }
 
+        // Sort by score (descending), then by title (alphabetically)
+        potentialRecs.sort((a, b) => {
+          if (b.score !== a.score) {
+            return b.score - a.score;
+          }
+          return a.book.volumeInfo.title.localeCompare(b.book.volumeInfo.title);
+        });
+
+        const recommendations = [];
+        const seenAuthors = new Set();
+        for (const { book } of potentialRecs) {
+          const info = book.volumeInfo;
+          const authorsLower = (info.authors || ["unknown"]).map(a => a.toLowerCase());
+          // Skip if any author has already been recommended
+          if (authorsLower.some(a => seenAuthors.has(a))) continue;
+          recommendations.push(book);
           authorsLower.forEach(a => seenAuthors.add(a));
+          if (recommendations.length >= 10) break;
+        }
 
+        resultsDiv.innerHTML = "";
+        for (const book of recommendations) {
+          const info = book.volumeInfo;
           const div = document.createElement("div");
           div.className = "book";
-
           const description = info.description || "No description available.";
           const shortened = description.length > 500 ? description.slice(0, 500) + "..." : description;
-
           div.innerHTML = `
             <img src="${info.imageLinks.thumbnail}" alt="Book cover">
             <div class="book-info">
-              <strong>${info.title || "No title"}</strong> by ${authorsList.join(", ") || "Unknown"}
+              <strong>${info.title || "No title"}</strong> by ${info.authors?.join(", ") || "Unknown"}
               <p>${shortened}</p>
               <a href="${info.infoLink}" target="_blank" rel="noopener noreferrer">More Info</a>
             </div>
           `;
           resultsDiv.appendChild(div);
-          recCount++;
         }
 
-        if (recCount === 0) {
+        if (recommendations.length === 0) {
           resultsDiv.innerHTML = "<p>No suitable recommendations found. Try another search.</p>";
         }
 
