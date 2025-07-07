@@ -179,17 +179,13 @@
           .map(item => {
             const info = item.volumeInfo;
             if (!info.title || !info.authors || info.authors.length === 0) return null;
-
             const authors = info.authors.join(", ");
             if (authors.toLowerCase() === "unknown") return null;
-
             const fullText = `${info.title} by ${authors}`;
             const key = fullText.toLowerCase();
-
             if (seen.has(key)) return null;
             seen.add(key);
-
-            const sim = similarity(lowerQuery, key.toLowerCase());
+            const sim = similarity(lowerQuery, key);
             return { fullText, title: info.title, authors, sim };
           })
           .filter(x => x !== null);
@@ -263,7 +259,7 @@
           const info = item.volumeInfo;
           if (!info.title) continue;
           const titleLower = info.title.toLowerCase();
-          const authorsList = info.authors || [];
+          const authorsList = info.authors || ["unknown"];
           const fullAuthorsStr = authorsList.join(", ").toLowerCase();
           if (titleLower.includes(lowerQuery) || lowerQuery.includes(titleLower) || fullAuthorsStr.includes(lowerQuery)) {
             userAuthors = authorsList.map(a => a.toLowerCase());
@@ -281,9 +277,9 @@
         const potentialRecs = [];
         for (const book of data.items) {
           const info = book.volumeInfo;
-          if (!info.title || !info.imageLinks?.thumbnail || !info.description) continue;
+          if (!info.title || !info.imageLinks?.thumbnail || !info.description || !info.authors || info.authors.length === 0) continue;
           const titleLower = info.title.toLowerCase();
-          const authorsList = info.authors || ["unknown"];
+          const authorsList = info.authors;
           const authorsLower = authorsList.map(a => a.toLowerCase());
 
           // Skip the user's book
@@ -318,7 +314,7 @@
         const seenAuthors = new Set();
         for (const { book } of potentialRecs) {
           const info = book.volumeInfo;
-          const authorsLower = (info.authors || ["unknown"]).map(a => a.toLowerCase());
+          const authorsLower = info.authors.map(a => a.toLowerCase());
           // Skip if any author has already been recommended
           if (authorsLower.some(a => seenAuthors.has(a))) continue;
           recommendations.push(book);
