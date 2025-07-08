@@ -350,6 +350,17 @@
           const description = info.description || "No description available.";
           const shortened = description.length > 500 ? description.slice(0, 500) + "..." : description;
           
+          // Remove &edge=curl from image URL
+          let imageUrl = info.imageLinks.thumbnail;
+          try {
+            const url = new URL(imageUrl);
+            url.searchParams.delete('edge');
+            imageUrl = url.toString();
+          } catch (e) {
+            // Fallback: use string replacement if URL parsing fails
+            imageUrl = imageUrl.replace(/&edge=curl/g, '');
+          }
+
           // Generate Amazon search URL
           const title = info.title || "Unknown";
           const authors = info.authors?.join(" ") || "Unknown";
@@ -357,7 +368,7 @@
           const amazonLink = `https://www.amazon.com/s?k=${amazonQuery}&i=stripbooks`;
 
           div.innerHTML = `
-            <img src="${info.imageLinks.thumbnail}" alt="Book cover">
+            <img src="${imageUrl}" alt="Book cover">
             <div class="book-info">
               <strong>${info.title || "No title"}</strong> by ${info.authors?.join(", ") || "Unknown"}
               <p>${shortened}</p>
