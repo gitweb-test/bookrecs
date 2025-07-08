@@ -212,6 +212,14 @@
       }
     });
 
+    // Add event listener for Enter key press
+    bookInput.addEventListener('keydown', function(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        getRecommendations();
+      }
+    });
+
     document.addEventListener("click", e => {
       if (!e.target.closest(".autocomplete-container")) {
         suggestionsBox.innerHTML = "";
@@ -231,6 +239,9 @@
     async function getRecommendations() {
       const query = document.getElementById("bookInput").value.trim();
       const resultsDiv = document.getElementById("results");
+
+      // Clear autocomplete suggestions
+      suggestionsBox.innerHTML = "";
 
       if (!query) {
         resultsDiv.innerHTML = "<p>Please enter a book title.</p>";
