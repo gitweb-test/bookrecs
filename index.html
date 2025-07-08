@@ -38,6 +38,7 @@
     }
 
     .autocomplete-suggestions {
+      display: none; /* Hide by default */
       border: 1px solid #ccc;
       border-top: none;
       max-height: 200px;
@@ -161,6 +162,7 @@
       const query = bookInput.value.trim();
       if (query.length < 3) {
         suggestionsBox.innerHTML = "";
+        suggestionsBox.style.display = "none"; // Hide when input is too short
         return;
       }
 
@@ -170,6 +172,7 @@
 
         if (!data.items) {
           suggestionsBox.innerHTML = "";
+          suggestionsBox.style.display = "none"; // Hide if no items
           return;
         }
 
@@ -203,11 +206,15 @@
           div.addEventListener("click", () => {
             bookInput.value = c.fullText;
             suggestionsBox.innerHTML = "";
+            suggestionsBox.style.display = "none"; // Hide after selection
           });
           suggestionsBox.appendChild(div);
         }
+
+        suggestionsBox.style.display = "block"; // Show when suggestions are populated
       } catch (e) {
         suggestionsBox.innerHTML = "";
+        suggestionsBox.style.display = "none"; // Hide on error
         console.error(e);
       }
     });
@@ -223,6 +230,7 @@
     document.addEventListener("click", e => {
       if (!e.target.closest(".autocomplete-container")) {
         suggestionsBox.innerHTML = "";
+        suggestionsBox.style.display = "none"; // Hide when clicking outside
       }
     });
 
@@ -240,8 +248,8 @@
       const query = document.getElementById("bookInput").value.trim();
       const resultsDiv = document.getElementById("results");
 
-      // Clear autocomplete suggestions
       suggestionsBox.innerHTML = "";
+      suggestionsBox.style.display = "none"; // Hide suggestions box
 
       if (!query) {
         resultsDiv.innerHTML = "<p>Please enter a book title.</p>";
