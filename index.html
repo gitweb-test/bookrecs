@@ -159,6 +159,23 @@
       return costs[s2.length];
     }
 
+    function calculateWeightedSimilarity(query, title, authors) {
+      const lowerQuery = query.toLowerCase();
+      const lowerTitle = title.toLowerCase();
+      const lowerAuthors = authors.toLowerCase();
+      const fullText = `${title} by ${authors}`.toLowerCase();
+      
+      // Calculate similarity scores
+      const titleSim = similarity(lowerQuery, lowerTitle);
+      const authorSim = similarity(lowerQuery, lowerAuthors);
+      const fullSim = similarity(lowerQuery, fullText);
+      
+      // Weight title matches more heavily (70% title, 20% author, 10% full text)
+      const weightedScore = (titleSim * 0.7) + (authorSim * 0.2) + (fullSim * 0.1);
+      
+      return weightedScore;
+    }
+
     bookInput.addEventListener("input", async () => {
       const query = bookInput.value.trim();
       if (query.length < 3) {
@@ -177,7 +194,6 @@
           return;
         }
 
-        const lowerQuery = query.toLowerCase();
         const seen = new Set();
 
         let candidates = data.items
@@ -190,7 +206,7 @@
             const key = fullText.toLowerCase();
             if (seen.has(key)) return null;
             seen.add(key);
-            const sim = similarity(lowerQuery, key);
+            const sim = calculateWeightedSimilarity(query, info.title, authors);
             return { fullText, title: info.title, authors, sim };
           })
           .filter(x => x !== null);
