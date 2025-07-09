@@ -124,6 +124,7 @@
   <script>
     const bookInput = document.getElementById("bookInput");
     const suggestionsBox = document.getElementById("autocomplete-list");
+    let isRecommendationsActive = false; // Flag to track if recommendations are being fetched
 
     function similarity(s1, s2) {
       const longer = s1.length > s2.length ? s1 : s2;
@@ -211,7 +212,11 @@
           suggestionsBox.appendChild(div);
         }
 
-        suggestionsBox.style.display = "block"; // Show when suggestions are populated
+        if (top.length > 0 && !isRecommendationsActive) {
+          suggestionsBox.style.display = "block"; // Show only if recommendations are not active
+        } else {
+          suggestionsBox.style.display = "none";
+        }
       } catch (e) {
         suggestionsBox.innerHTML = "";
         suggestionsBox.style.display = "none"; // Hide on error
@@ -219,7 +224,6 @@
       }
     });
 
-    // Add event listener for Enter key press
     bookInput.addEventListener('keydown', function(event) {
       if (event.key === "Enter") {
         event.preventDefault();
@@ -245,20 +249,22 @@
     }
 
     async function getRecommendations() {
-      const query = document.getElementById("bookInput").value.trim();
-      const resultsDiv = document.getElementById("results");
-
-      suggestionsBox.innerHTML = "";
-      suggestionsBox.style.display = "none"; // Hide suggestions box
-
-      if (!query) {
-        resultsDiv.innerHTML = "<p>Please enter a book title.</p>";
-        return;
-      }
-
-      resultsDiv.innerHTML = "<p>🔍 Searching for recommendations...</p>";
-
+      if (isRecommendationsActive) return;
+      isRecommendationsActive = true;
       try {
+        const query = document.getElementById("bookInput").value.trim();
+        const resultsDiv = document.getElementById("results");
+
+        suggestionsBox.innerHTML = "";
+        suggestionsBox.style.display = "none"; // Hide suggestions box
+
+        if (!query) {
+          resultsDiv.innerHTML = "<p>Please enter a book title.</p>";
+          return;
+        }
+
+        resultsDiv.innerHTML = "<p>🔍 Searching for recommendations...</p>";
+
         const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=40`);
         const data = await res.json();
 
@@ -274,7 +280,6 @@
         let userAuthors = [];
         const lowerQuery = query.toLowerCase();
 
-        // Find the user's book
         for (const item of data.items) {
           const info = item.volumeInfo;
           if (!info.title) continue;
@@ -302,27 +307,21 @@
           const authorsList = info.authors;
           const authorsLower = authorsList.map(a => a.toLowerCase());
 
-          // Skip the user's book
           if (titleLower.includes(lowerQuery) || lowerQuery.includes(titleLower)) continue;
-
-          // Skip books by the same authors as the user's book
           if (hasAuthorOverlap(authorsLower, userAuthors)) continue;
 
           let score = 0;
-          // Add score for genre overlap
           if (userCategories.length > 0 && info.categories && info.categories.length > 0) {
             if (userCategories.some(cat => info.categories.includes(cat))) {
               score += 1;
             }
           }
-          // Add score for high rating
           if (info.averageRating && typeof info.averageRating === 'number' && info.averageRating >= 3.5) {
             score += 1;
           }
           potentialRecs.push({ book, score });
         }
 
-        // Sort by score (descending), then by title (alphabetically)
         potentialRecs.sort((a, b) => {
           if (b.score !== a.score) {
             return b.score - a.score;
@@ -335,7 +334,6 @@
         for (const { book } of potentialRecs) {
           const info = book.volumeInfo;
           const authorsLower = info.authors.map(a => a.toLowerCase());
-          // Skip if any author has already been recommended
           if (authorsLower.some(a => seenAuthors.has(a))) continue;
           recommendations.push(book);
           authorsLower.forEach(a => seenAuthors.add(a));
@@ -350,18 +348,15 @@
           const description = info.description || "No description available.";
           const shortened = description.length > 500 ? description.slice(0, 500) + "..." : description;
           
-          // Remove &edge=curl from image URL
           let imageUrl = info.imageLinks.thumbnail;
           try {
             const url = new URL(imageUrl);
             url.searchParams.delete('edge');
             imageUrl = url.toString();
           } catch (e) {
-            // Fallback: use string replacement if URL parsing fails
             imageUrl = imageUrl.replace(/&edge=curl/g, '');
           }
 
-          // Generate Amazon search URL
           const title = info.title || "Unknown";
           const authors = info.authors?.join(" ") || "Unknown";
           const amazonQuery = encodeURIComponent(`${title} by ${authors}`);
@@ -386,6 +381,8 @@
       } catch (error) {
         resultsDiv.innerHTML = "<p>❌ Something went wrong. Try again later.</p>";
         console.error(error);
+      } finally {
+        isRecommendationsActive = false;
       }
     }
   </script>
