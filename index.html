@@ -172,7 +172,7 @@
       const lowerAuthors = authors.toLowerCase();
       const fullText = `${title} by ${authors}`.toLowerCase();
       
-      // Check if query appears to be looking for a title (starts with title)
+      // Check if the title starts with exactly what the user typed
       const titleStartsWithQuery = lowerTitle.startsWith(lowerQuery);
       const authorStartsWithQuery = lowerAuthors.startsWith(lowerQuery);
       
@@ -181,18 +181,20 @@
       const authorSim = similarity(lowerQuery, lowerAuthors);
       const fullSim = similarity(lowerQuery, fullText);
       
-      // If title starts with query, heavily prioritize it
-      if (titleStartsWithQuery && !authorStartsWithQuery) {
-        return (titleSim * 0.9) + (authorSim * 0.05) + (fullSim * 0.05);
+      // HEAVILY prioritize titles that start with the exact query
+      if (titleStartsWithQuery) {
+        // Give massive bonus for exact prefix matches
+        const prefixBonus = 0.5; // Extra boost for starting with query
+        return Math.min(1.0, (titleSim * 0.95) + prefixBonus);
       }
       
-      // For shorter queries (< 6 chars), prioritize title matches even more
-      if (lowerQuery.length < 6) {
-        return (titleSim * 0.85) + (authorSim * 0.1) + (fullSim * 0.05);
+      // If author starts with query but title doesn't, still prioritize title similarity
+      if (authorStartsWithQuery && !titleStartsWithQuery) {
+        return (titleSim * 0.6) + (authorSim * 0.3) + (fullSim * 0.1);
       }
       
-      // Default weighting (title still prioritized but less extreme)
-      const weightedScore = (titleSim * 0.7) + (authorSim * 0.2) + (fullSim * 0.1);
+      // For any other query, heavily prioritize title matches
+      const weightedScore = (titleSim * 0.85) + (authorSim * 0.1) + (fullSim * 0.05);
       
       return weightedScore;
     }
